@@ -33,8 +33,8 @@ function bytes(v: number | null): string {
 
 export default function HomePage() {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
-  const [email, setEmail] = useState("yuuta.ochiai@tk.pacific.co.jp");
-  const [password, setPassword] = useState("0410");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
