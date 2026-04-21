@@ -1,0 +1,8 @@
+*.pem
+.env
+.env.*
+.supabase/
+node_modules/
+.vercel/
+dist/
+build/
