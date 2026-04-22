@@ -48,8 +48,9 @@
 - Supabase schema / RLS / trigger 実装済み
 - `github-release-download` Edge Function 実装済み
 - `github-release-sync` Edge Function 実装済み（手動同期 + cron同期起点）
+- `github-repository-admin` Edge Function 実装済み（GitHub Appが参照可能なリポジトリ一覧取得、管理対象追加）
 - Frontend のログイン / 一覧 / ダウンロード導線実装済み
-- 管理者向けの最小管理UI 実装済み（同期実行、同期状態表示、ツール有効/無効）
+- 管理者向けの最小管理UI 実装済み（GitHubリポジトリ追加、同期実行、同期状態表示、ツール有効/無効）
 - `dev` / `main` ブランチ運用開始済み
 
 ---
@@ -70,6 +71,8 @@
 - 変更は migration で管理
 - seed は `supabase/seed_dev.sql` を正本とする
 - 手動 SQL は検証用途のみ（本採用時は migration へ反映）
+- GitHub Appが参照可能なリポジトリは、管理者画面から一覧取得して `tools` / `tool_repositories` に登録する
+- GitHub App秘密鍵、installation token、service role key はブラウザへ渡さない
 
 ---
 
@@ -93,7 +96,7 @@
 
 - 複数 GitHub Organization 対応方針
 - Release 同期方式の拡張（webhook導入、履歴同期範囲）
-- 管理画面要件の拡張（失敗再試行、監視）
+- 管理画面要件の拡張（編集、削除、失敗再試行、監視）
 - 権限モデル（一般ユーザー / 管理者）
 
 ---

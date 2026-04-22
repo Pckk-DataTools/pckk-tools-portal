@@ -37,6 +37,20 @@ type RepositorySync = {
   last_release_tag: string | null;
 };
 
+type GitHubRepositoryOption = {
+  installation_id: number;
+  owner: string;
+  repo: string;
+  full_name: string;
+  private: boolean;
+  archived: boolean;
+  visibility: string;
+  html_url: string | null;
+  registered: boolean;
+  suggested_slug: string;
+  suggested_display_name: string;
+};
+
 function bytes(v: number | null): string {
   if (!v) return "-";
   if (v < 1024) return `${v} B`;
@@ -55,10 +69,19 @@ export default function HomePage() {
   const [versions, setVersions] = useState<Version[]>([]);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [repositories, setRepositories] = useState<RepositorySync[]>([]);
+  const [availableRepositories, setAvailableRepositories] = useState<GitHubRepositoryOption[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
   const [runningSync, setRunningSync] = useState(false);
   const [togglingToolId, setTogglingToolId] = useState<string | null>(null);
   const [downloadingAssetId, setDownloadingAssetId] = useState<string | null>(null);
+  const [loadingAvailableRepositories, setLoadingAvailableRepositories] = useState(false);
+  const [addingRepository, setAddingRepository] = useState(false);
+  const [selectedRepositoryKey, setSelectedRepositoryKey] = useState("");
+  const [repositoryForm, setRepositoryForm] = useState({
+    slug: "",
+    display_name: "",
+    description: "",
+  });
 
   useEffect(() => {
     if (!supabase) return;
@@ -162,6 +185,7 @@ export default function HomePage() {
     setVersions([]);
     setAssets([]);
     setRepositories([]);
+    setAvailableRepositories([]);
     setMessage("ログアウトしました。");
   }
 
@@ -250,6 +274,87 @@ export default function HomePage() {
     }
   }
 
+  function repositoryKey(repo: GitHubRepositoryOption) {
+    return `${repo.installation_id}:${repo.full_name}`;
+  }
+
+  async function loadAvailableRepositories() {
+    if (!session?.access_token || !isAdmin) return;
+    setLoadingAvailableRepositories(true);
+    setMessage("");
+    try {
+      const endpoint = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/github-repository-admin`;
+      const res = await fetch(endpoint, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? JSON.stringify(json));
+      setAvailableRepositories((json.repositories as GitHubRepositoryOption[]) ?? []);
+      setMessage(`GitHubリポジトリ一覧を取得しました: ${(json.repositories ?? []).length}件`);
+    } catch (error) {
+      setMessage(`GitHubリポジトリ一覧取得失敗: ${String(error)}`);
+    } finally {
+      setLoadingAvailableRepositories(false);
+    }
+  }
+
+  function selectRepository(key: string) {
+    setSelectedRepositoryKey(key);
+    const repo = availableRepositories.find((item) => repositoryKey(item) === key);
+    if (!repo) {
+      setRepositoryForm({ slug: "", display_name: "", description: "" });
+      return;
+    }
+    setRepositoryForm({
+      slug: repo.suggested_slug,
+      display_name: repo.suggested_display_name,
+      description: "",
+    });
+  }
+
+  async function addSelectedRepository() {
+    if (!session?.access_token || !isAdmin) return;
+    const repo = availableRepositories.find((item) => repositoryKey(item) === selectedRepositoryKey);
+    if (!repo) {
+      setMessage("追加対象のリポジトリを選択してください。");
+      return;
+    }
+    setAddingRepository(true);
+    setMessage("");
+    try {
+      const endpoint = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/github-repository-admin`;
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          owner: repo.owner,
+          repo: repo.repo,
+          installation_id: repo.installation_id,
+          slug: repositoryForm.slug,
+          display_name: repositoryForm.display_name,
+          description: repositoryForm.description,
+          sync_enabled: true,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? JSON.stringify(json));
+      setMessage(`リポジトリを追加しました: ${repo.full_name}`);
+      setSelectedRepositoryKey("");
+      setRepositoryForm({ slug: "", display_name: "", description: "" });
+      await Promise.all([loadData(true), loadAvailableRepositories()]);
+    } catch (error) {
+      setMessage(`リポジトリ追加失敗: ${String(error)}`);
+    } finally {
+      setAddingRepository(false);
+    }
+  }
+
   const versionById = useMemo(() => new Map(versions.map((v) => [v.id, v])), [versions]);
   const versionsByTool = useMemo(() => {
     const m = new Map<string, Version[]>();
@@ -271,6 +376,10 @@ export default function HomePage() {
   }, [assets]);
   const visibleTools = useMemo(() => (isAdmin ? tools : tools.filter((tool) => tool.is_active)), [isAdmin, tools]);
   const toolNameById = useMemo(() => new Map(tools.map((tool) => [tool.id, tool.display_name])), [tools]);
+  const unregisteredRepositories = useMemo(
+    () => availableRepositories.filter((repo) => !repo.registered && !repo.archived),
+    [availableRepositories],
+  );
 
   return (
     <main className="page">
@@ -335,6 +444,55 @@ export default function HomePage() {
                       {runningSync ? "同期中..." : "今すぐ同期"}
                     </button>
                   </div>
+
+                  <h3 style={{ marginTop: 14 }}>GitHubリポジトリ追加</h3>
+                  <div className="row">
+                    <button
+                      className="secondary"
+                      disabled={loadingAvailableRepositories}
+                      onClick={() => void loadAvailableRepositories()}
+                    >
+                      {loadingAvailableRepositories ? "取得中..." : "GitHub Appのリポジトリ一覧を取得"}
+                    </button>
+                    <span className="meta">
+                      取得済み {availableRepositories.length}件 / 未登録 {unregisteredRepositories.length}件
+                    </span>
+                  </div>
+
+                  {availableRepositories.length > 0 ? (
+                    <div className="grid" style={{ marginTop: 10 }}>
+                      <select value={selectedRepositoryKey} onChange={(e) => selectRepository(e.target.value)}>
+                        <option value="">追加するリポジトリを選択</option>
+                        {availableRepositories.map((repo) => (
+                          <option key={repositoryKey(repo)} value={repositoryKey(repo)} disabled={repo.registered || repo.archived}>
+                            {repo.full_name} / {repo.visibility}
+                            {repo.registered ? " / 登録済み" : ""}
+                            {repo.archived ? " / archived" : ""}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        value={repositoryForm.slug}
+                        onChange={(e) => setRepositoryForm((current) => ({ ...current, slug: e.target.value }))}
+                        placeholder="slug"
+                      />
+                      <input
+                        value={repositoryForm.display_name}
+                        onChange={(e) => setRepositoryForm((current) => ({ ...current, display_name: e.target.value }))}
+                        placeholder="表示名"
+                      />
+                      <input
+                        value={repositoryForm.description}
+                        onChange={(e) => setRepositoryForm((current) => ({ ...current, description: e.target.value }))}
+                        placeholder="説明（任意）"
+                      />
+                      <div className="row">
+                        <button disabled={addingRepository || !selectedRepositoryKey} onClick={() => void addSelectedRepository()}>
+                          {addingRepository ? "追加中..." : "選択リポジトリを追加"}
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
 
                   <h3 style={{ marginTop: 14 }}>ツール有効/無効</h3>
                   {tools.map((tool) => (

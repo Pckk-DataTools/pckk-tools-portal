@@ -21,7 +21,9 @@
    - `supabase\\functions\\.env` の `GITHUB_APP_PRIVATE_KEY` を埋める
 6. Functions secrets 設定と deploy
    - `supabase secrets set --env-file supabase/functions/.env --project-ref <DEV_PROJECT_REF>`
-   - `supabase functions deploy github-release-download --project-ref <DEV_PROJECT_REF>`
+   - `supabase functions deploy github-release-download --project-ref <DEV_PROJECT_REF> --no-verify-jwt`
+   - `supabase functions deploy github-release-sync --project-ref <DEV_PROJECT_REF> --no-verify-jwt`
+   - `supabase functions deploy github-repository-admin --project-ref <DEV_PROJECT_REF> --no-verify-jwt`
 
 ## 含まれる実装
 
@@ -29,9 +31,11 @@
 - RLS: `supabase/migrations/0002_rls.sql`
 - Auth trigger: `supabase/migrations/0003_profiles_trigger.sql`
 - Sync / Admin extension: `supabase/migrations/0004_release_sync_and_admin.sql`
+- Repository admin extension: `supabase/migrations/0005_admin_repository_management.sql`
 - Seed: `supabase/seed_dev.sql`
 - Edge Function: `supabase/functions/github-release-download/index.ts`
 - Edge Function: `supabase/functions/github-release-sync/index.ts`
+- Edge Function: `supabase/functions/github-repository-admin/index.ts`
 
 ## Frontend (apps/web)
 
