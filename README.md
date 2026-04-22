@@ -38,3 +38,13 @@
 3. 起動
    - `npm run dev`
 4. ブラウザで `http://localhost:3000` を開く
+
+## Git Branch Flow
+
+- `main`: 本番反映用ブランチ（Vercel Production）
+- `dev`: 日常開発用ブランチ
+- 開発手順:
+  1. `dev` で作業して push
+  2. `dev -> main` の Pull Request を作成
+  3. Vercel Preview で確認
+  4. 問題なければ `main` にマージ
