@@ -34,6 +34,17 @@ type GitHubRepository = {
   };
 };
 
+type GitHubInstallation = {
+  id: number;
+  account: {
+    login: string;
+    type: string;
+  } | null;
+  target_type: string;
+  repository_selection: string;
+  suspended_at: string | null;
+};
+
 type CreateRepositoryRequest = {
   owner: string;
   repo: string;
@@ -132,7 +143,7 @@ function toSlug(value: string) {
     .slice(0, 80);
 }
 
-async function listInstallationIds() {
+async function listRegisteredRepositories() {
   const { data, error } = await supabaseAdmin
     .from("tool_repositories")
     .select("github_owner, github_repo, github_installation_id")
@@ -142,12 +153,38 @@ async function listInstallationIds() {
   if (error) throw new Error(`registered repositories load error: ${error.message}`);
 
   const rows = (data ?? []) as RepoRow[];
-  const installationIds = [...new Set(rows.map((row) => Number(row.github_installation_id)).filter(Boolean))];
-  return { rows, installationIds };
+  return rows;
 }
 
-async function listRepositoriesForInstallation(installationId: number) {
-  const token = await getInstallationToken(installationId);
+async function listAppInstallations() {
+  const appJwt = await createGitHubAppJwt();
+  const installations: GitHubInstallation[] = [];
+  let page = 1;
+
+  while (true) {
+    const response = await fetch(`https://api.github.com/app/installations?per_page=100&page=${page}`, {
+      headers: {
+        Accept: "application/vnd.github+json",
+        Authorization: `Bearer ${appJwt}`,
+        "X-GitHub-Api-Version": GITHUB_API_VERSION,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`installations fetch error: ${await response.text()}`);
+    }
+
+    const json = await response.json() as GitHubInstallation[];
+    installations.push(...json);
+    if (json.length < 100) break;
+    page += 1;
+  }
+
+  return installations.filter((installation) => !installation.suspended_at);
+}
+
+async function listRepositoriesForInstallation(installation: GitHubInstallation) {
+  const token = await getInstallationToken(installation.id);
   const repositories: GitHubRepository[] = [];
   let page = 1;
 
@@ -174,7 +211,10 @@ async function listRepositoriesForInstallation(installationId: number) {
   }
 
   return repositories.map((repo) => ({
-    installation_id: installationId,
+    installation_id: installation.id,
+    installation_account_login: installation.account?.login ?? repo.owner.login,
+    installation_account_type: installation.account?.type ?? installation.target_type,
+    repository_selection: installation.repository_selection,
     owner: repo.owner.login,
     repo: repo.name,
     full_name: repo.full_name,
@@ -186,14 +226,11 @@ async function listRepositoriesForInstallation(installationId: number) {
 }
 
 async function listAvailableRepositories() {
-  const { rows, installationIds } = await listInstallationIds();
-  if (installationIds.length === 0) {
-    return { repositories: [], registered: [] };
-  }
-
+  const rows = await listRegisteredRepositories();
+  const installations = await listAppInstallations();
   const registeredKeys = new Set(rows.map((row) => `${row.github_owner}/${row.github_repo}`.toLowerCase()));
   const repositories = (await Promise.all(
-    installationIds.map((installationId) => listRepositoriesForInstallation(installationId)),
+    installations.map((installation) => listRepositoriesForInstallation(installation)),
   )).flat();
 
   repositories.sort((a, b) => a.full_name.localeCompare(b.full_name));
@@ -206,6 +243,12 @@ async function listAvailableRepositories() {
       suggested_display_name: repo.repo,
     })),
     registered: rows,
+    installations: installations.map((installation) => ({
+      id: installation.id,
+      account_login: installation.account?.login ?? null,
+      account_type: installation.account?.type ?? installation.target_type,
+      repository_selection: installation.repository_selection,
+    })),
   };
 }
 

@@ -71,7 +71,7 @@
 - 変更は migration で管理
 - seed は `supabase/seed_dev.sql` を正本とする
 - 手動 SQL は検証用途のみ（本採用時は migration へ反映）
-- GitHub Appが参照可能なリポジトリは、管理者画面から一覧取得して `tools` / `tool_repositories` に登録する
+- GitHub Appがインストール済みの全org/userから参照可能リポジトリを一覧取得し、管理者画面から `tools` / `tool_repositories` に登録する
 - GitHub App秘密鍵、installation token、service role key はブラウザへ渡さない
 
 ---
@@ -94,7 +94,7 @@
 
 ## 8. 今後の仕様確定項目
 
-- 複数 GitHub Organization 対応方針
+- 複数 GitHub Organization 対応方針（GitHub Appの全installation一覧取得は実装済み）
 - Release 同期方式の拡張（webhook導入、履歴同期範囲）
 - 管理画面要件の拡張（編集、削除、失敗再試行、監視）
 - 権限モデル（一般ユーザー / 管理者）

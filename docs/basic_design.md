@@ -76,9 +76,10 @@
 - 管理単位:
   - `org/repo` ごとに installation を持つ
 - リポジトリ一覧:
-  - GitHub App JWT で installation token を発行する
+  - GitHub App JWT で `/app/installations` を呼び出す
+  - 取得した全installationに対して installation token を発行する
   - installation token で `/installation/repositories` を呼び出す
-  - 取得した一覧は管理者画面で表示し、未登録リポジトリのみ追加対象にする
+  - 取得した一覧は管理者画面でorg/user単位に表示し、未登録リポジトリのみ追加対象にする
 
 ---
 
@@ -144,11 +145,12 @@
 
 1. 管理者がログインする
 2. Frontend が `github-repository-admin` の `GET` を呼び出す
-3. Edge Function がGitHub Appから参照可能リポジトリ一覧を取得する
-4. Frontend が登録済み/未登録を表示する
-5. 管理者が未登録リポジトリを選び、表示名・slug・説明を入力して追加する
-6. Edge Function が `tools` と `tool_repositories` を作成する
-7. 管理者が `github-release-sync` を実行して release / asset を同期する
+3. Edge Function がGitHub Appの全installationを取得する
+4. Edge Function が各installationから参照可能リポジトリ一覧を取得する
+5. Frontend が登録済み/未登録を表示する
+6. 管理者が未登録リポジトリを選び、表示名・slug・説明を入力して追加する
+7. Edge Function が `tools` と `tool_repositories` を作成する
+8. 管理者が `github-release-sync` を実行して release / asset を同期する
 
 セキュリティ:
 

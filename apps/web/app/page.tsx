@@ -39,6 +39,9 @@ type RepositorySync = {
 
 type GitHubRepositoryOption = {
   installation_id: number;
+  installation_account_login: string;
+  installation_account_type: string;
+  repository_selection: string;
   owner: string;
   repo: string;
   full_name: string;
@@ -293,7 +296,9 @@ export default function HomePage() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? JSON.stringify(json));
       setAvailableRepositories((json.repositories as GitHubRepositoryOption[]) ?? []);
-      setMessage(`GitHubリポジトリ一覧を取得しました: ${(json.repositories ?? []).length}件`);
+      setMessage(
+        `GitHubリポジトリ一覧を取得しました: ${(json.repositories ?? []).length}件 / installations ${(json.installations ?? []).length}件`,
+      );
     } catch (error) {
       setMessage(`GitHubリポジトリ一覧取得失敗: ${String(error)}`);
     } finally {
@@ -465,7 +470,7 @@ export default function HomePage() {
                         <option value="">追加するリポジトリを選択</option>
                         {availableRepositories.map((repo) => (
                           <option key={repositoryKey(repo)} value={repositoryKey(repo)} disabled={repo.registered || repo.archived}>
-                            {repo.full_name} / {repo.visibility}
+                            [{repo.installation_account_login}] {repo.full_name} / {repo.visibility}
                             {repo.registered ? " / 登録済み" : ""}
                             {repo.archived ? " / archived" : ""}
                           </option>
