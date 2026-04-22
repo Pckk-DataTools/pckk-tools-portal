@@ -28,8 +28,10 @@
 - Schema: `supabase/migrations/0001_init.sql`
 - RLS: `supabase/migrations/0002_rls.sql`
 - Auth trigger: `supabase/migrations/0003_profiles_trigger.sql`
+- Sync / Admin extension: `supabase/migrations/0004_release_sync_and_admin.sql`
 - Seed: `supabase/seed_dev.sql`
 - Edge Function: `supabase/functions/github-release-download/index.ts`
+- Edge Function: `supabase/functions/github-release-sync/index.ts`
 
 ## Frontend (apps/web)
 

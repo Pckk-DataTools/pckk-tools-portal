@@ -1,6 +1,7 @@
 *.pem
 .env
 .env.*
+!supabase/functions/.env.example
 .supabase/
 node_modules/
 .vercel/

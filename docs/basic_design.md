@@ -101,21 +101,30 @@
 
 - `tool_versions` / `tool_assets` の手動更新を廃止する
 
-段階的方針:
+現行実装:
 
 1. 手動同期API（管理者実行）
-2. 定期同期（例: 15分）
-3. webhook同期（release published）
+2. 定期同期（15分, pg_cron）
+
+今後の拡張:
+
+1. webhook同期（release published）
+2. 最新のみ同期から履歴同期への拡張
 
 同期対象:
 
-- `tool_repositories` に登録済みの `github_owner/github_repo`
-- `release_channel` に応じた対象release
+- `tool_repositories.sync_enabled = true` の `github_owner/github_repo`
+- 対象releaseは latest release
 
 失敗時:
 
 - repo単位で失敗を分離
 - エラー内容をログ化し、他repoの同期は継続
+
+実装補足:
+
+- 同期実行履歴は `sync_runs` テーブルへ記録
+- repo単位の最新同期状態は `tool_repositories.last_*` 列へ記録
 
 ---
 
@@ -164,8 +173,9 @@ Supabase:
   - 単一GitHub App運用か、org別App許容か
 - 管理者権限モデル
   - 同期実行可能ユーザーの定義
-- 同期ジョブの実行基盤
-  - Supabase Scheduled / 外部CI どちらを採用するか
+- 同期ジョブの高度化
+  - リトライ制御
+  - webhook併用時の重複制御
 
 ---
 

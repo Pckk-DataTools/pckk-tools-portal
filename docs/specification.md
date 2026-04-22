@@ -47,7 +47,9 @@
 
 - Supabase schema / RLS / trigger 実装済み
 - `github-release-download` Edge Function 実装済み
+- `github-release-sync` Edge Function 実装済み（手動同期 + cron同期起点）
 - Frontend のログイン / 一覧 / ダウンロード導線実装済み
+- 管理者向けの最小管理UI 実装済み（同期実行、同期状態表示、ツール有効/無効）
 - `dev` / `main` ブランチ運用開始済み
 
 ---
@@ -90,8 +92,8 @@
 ## 8. 今後の仕様確定項目
 
 - 複数 GitHub Organization 対応方針
-- Release 同期方式（手動 / 定期 / webhook）
-- 管理画面要件（同期実行、失敗再試行、監視）
+- Release 同期方式の拡張（webhook導入、履歴同期範囲）
+- 管理画面要件の拡張（失敗再試行、監視）
 - 権限モデル（一般ユーザー / 管理者）
 
 ---
