@@ -2,6 +2,10 @@
 
 `dev` / `prod` 分離運用を前提に、まず `dev` (Supabase Cloud) を使って進める土台を置いています。
 
+## 仕様書
+
+- 正規仕様書: `docs/specification.md`
+
 ## 初期セットアップ（dev）
 
 1. Supabase Cloud で `pckk-tools-portal-dev` プロジェクトを作成
