@@ -1,6 +1,6 @@
 # pckk-tools-portal 基本設計書
 
-更新日: 2026-04-22  
+更新日: 2026-04-24  
 関連仕様: `docs/specification.md`
 
 ---
@@ -214,12 +214,86 @@ Supabase:
 
 ---
 
-## 10. 変更管理
+## 10. UI画面設計（2026-04-24 追加）
+
+### 10-1. 対象
+
+- `apps/web/app/page.tsx`
+- `apps/web/components/portal/*`
+
+### 10-2. コンポーネント分割
+
+- `PortalHeader`: タイトル、ユーザー情報、role、再読み込み、ログアウト
+- `PortalHero`: 説明文と背景パターン
+- `PortalStats`: 4つのステータスカード表示
+- `ToolSearchFilters`: 検索/カテゴリ/条件フィルタ/リセット
+- `ToolCard`: ツール単位カード表示（最新版中心）
+- `AssetBadge`: asset用途ラベル
+- `AssetDownloadButton`: ダウンロードCTA（最新版導線を強調）
+- `VersionAccordion`: 旧バージョン表示
+- `ManagementInfoDisclosure`: 内部管理情報表示
+- `EmptyState`: 該当データなし表示
+
+### 10-3. 表示用データ整形
+
+フロントでは生の `tools/tool_versions/tool_assets` を直接描画せず、表示用モデルへ整形する。
+
+- `DisplayTool`
+  - `latestVersion` と `oldVersions` を分離
+  - `recommendedAsset` を保持
+  - `documentAsset` / `otherAssets` を保持
+- `DisplayVersion`
+  - `assets` を分類結果つきで保持
+- `DisplayAsset`
+  - `kind`（app/document/python/support/other）を保持
+
+### 10-4. asset分類と推奨選定
+
+- `getAssetKind(fileName)` で拡張子・名称から用途分類する
+- `getRecommendedAsset(assets)` で優先度順に推奨assetを選定する
+  - 優先順: app > document > python > support > other
+
+### 10-5. 情報表示ポリシー
+
+- 通常ユーザーの初期表示:
+  - ツール名、概要、対象業務、最新版、推奨asset、最新版ダウンロード
+- 折りたたみ表示:
+  - 旧バージョン
+  - その他ファイル
+  - 管理情報（ID群、GitHub release id、size、published_at）
+
+### 10-6. フィルタ設計
+
+- キーワード検索対象:
+  - `display_name`, `slug`, `description`, `category`, `targetWork`
+- 条件:
+  - 最新版のみ（初期ON）
+  - ドキュメントあり
+  - インストーラーあり
+
+### 10-7. レイアウト/スタイル
+
+- PC: 2-3カラムカード
+- タブレット/モバイル: 1カラム
+- カラートークン:
+  - `navy #0B1F3A`
+  - `blue #1E5AA8`
+  - `teal #0F766E`
+  - `bg #F5F7FA`
+  - `surface #FFFFFF`
+  - `border #D8E0EA`
+  - `text #102033`
+  - `muted #5D6B7A`
+- ヒーローに控えめな地形図/等高線/GISメッシュ風パターンを重ねる
+
+---
+
+## 11. 変更管理
 
 - 設計変更は本書更新を先行する
 - 実装PRでは本書と仕様書の差分整合を確認する
 
-### 10-1. 実務フロー（追加方針）
+### 11-1. 実務フロー（追加方針）
 
 1. 仕様書に追加方針を記載する
 2. 基本設計書に設計差分を記載する
