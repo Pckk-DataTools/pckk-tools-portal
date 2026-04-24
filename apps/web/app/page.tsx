@@ -9,6 +9,7 @@ type Tool = {
   slug: string;
   display_name: string;
   description: string | null;
+  is_active: boolean;
 };
 
 type Version = {
@@ -130,7 +131,7 @@ export default function HomePage() {
     setMessage("");
     try {
       const [toolsRes, versionsRes, assetsRes, reposRes] = await Promise.all([
-        supabase.from("tools").select("id,slug,display_name,description").order("display_name"),
+        supabase.from("tools").select("id,slug,display_name,description,is_active").order("display_name"),
         supabase.from("tool_versions").select("id,tool_id,version_tag").order("created_at", { ascending: false }),
         supabase.from("tool_assets").select("id,tool_version_id,asset_name,size_bytes").order("asset_name"),
         admin
@@ -448,7 +449,7 @@ export default function HomePage() {
     }
     return m;
   }, [assets]);
-  const visibleTools = useMemo(() => tools, [tools]);
+  const visibleTools = useMemo(() => (isAdmin ? tools : tools.filter((tool) => tool.is_active)), [isAdmin, tools]);
   const toolNameById = useMemo(() => new Map(tools.map((tool) => [tool.id, tool.display_name])), [tools]);
   const unregisteredRepositories = useMemo(
     () => availableRepositories.filter((repo) => !repo.registered && !repo.archived),
