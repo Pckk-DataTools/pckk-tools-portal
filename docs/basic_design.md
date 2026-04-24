@@ -55,12 +55,14 @@
 
 ### 3-3. Supabase Edge Function
 
-- 関数名: `github-release-download`
+- 関数名:
+  - `github-release-download`
+  - `github-release-sync`
+  - `github-repository-admin`
 - 役割:
-  - 認証トークン検証（関数内）
-  - tool_asset_id から GitHub asset 解決
-  - GitHub App 経由で asset 取得
-  - ログ記録
+  - `github-release-download`: tool_asset_id から GitHub asset を解決し、GitHub App 経由で取得して返却する
+  - `github-release-sync`: 登録済みリポジトリの latest release を取得し、version / asset 情報を同期する
+  - `github-repository-admin`: GitHub Appが参照可能なリポジトリ一覧を取得し、管理者操作で `tools` / `tool_repositories` に登録する
 - 補足:
   - CORS preflight (`OPTIONS`) 対応
   - `verify_jwt=false`（関数内認証を採用）
@@ -73,6 +75,11 @@
   - `Contents: Read-only`
 - 管理単位:
   - `org/repo` ごとに installation を持つ
+- リポジトリ一覧:
+  - GitHub App JWT で `/app/installations` を呼び出す
+  - 取得した全installationに対して installation token を発行する
+  - installation token で `/installation/repositories` を呼び出す
+  - 取得した一覧は管理者画面でorg/user単位に表示し、未登録リポジトリのみ追加対象にする
 
 ---
 
@@ -101,25 +108,60 @@
 
 - `tool_versions` / `tool_assets` の手動更新を廃止する
 
-段階的方針:
+現行実装:
 
-1. 手動同期API（管理者実行）
-2. 定期同期（例: 15分）
-3. webhook同期（release published）
+1. 認証ユーザーログイン時の自動同期（10分クールダウン）
+2. 手動同期API（管理者UIから実行可能）
+
+今後の拡張:
+
+1. webhook同期（release published）
+2. 最新のみ同期から履歴同期への拡張
 
 同期対象:
 
-- `tool_repositories` に登録済みの `github_owner/github_repo`
-- `release_channel` に応じた対象release
+- `tool_repositories.sync_enabled = true` の `github_owner/github_repo`
+- 対象releaseは latest release
 
 失敗時:
 
 - repo単位で失敗を分離
 - エラー内容をログ化し、他repoの同期は継続
 
+実装補足:
+
+- 同期実行履歴は `sync_runs` テーブルへ記録
+- repo単位の最新同期状態は `tool_repositories.last_*` 列へ記録
+- 直近10分以内に `sync_runs` が存在する場合は `skipped_recent` を返して処理を抑止
+
 ---
 
-## 6. ブランチ / デプロイ設計
+## 6. 管理画面設計
+
+目的:
+
+- DB直接操作なしで配布対象リポジトリを追加できるようにする
+
+現行実装:
+
+1. 管理者がログインする
+2. Frontend が `github-repository-admin` の `GET` を呼び出す
+3. Edge Function がGitHub Appの全installationを取得する
+4. Edge Function が各installationから参照可能リポジトリ一覧を取得する
+5. Frontend が登録済み/未登録を表示する
+6. 管理者が未登録リポジトリを選び、表示名・slug・説明を入力して追加する
+7. Edge Function が `tools` と `tool_repositories` を作成する
+8. 管理者が `github-release-sync` を実行して release / asset を同期する
+
+セキュリティ:
+
+- 管理者判定は `profiles.is_admin = true` で行う
+- GitHub App秘密鍵、installation token、service role key はEdge Function内だけで扱う
+- ブラウザから直接GitHub APIへアクセスしない
+
+---
+
+## 7. ブランチ / デプロイ設計
 
 - `dev`: 開発用
 - `main`: 本番反映用
@@ -138,43 +180,44 @@ Supabase:
 
 ---
 
-## 7. 非機能設計
+## 8. 非機能設計
 
-### 7-1. 可用性
+### 8-1. 可用性
 
 - 一覧表示は DB 参照中心で応答を安定化
 - 配布時のみ GitHub API に依存
 
-### 7-2. セキュリティ
+### 8-2. セキュリティ
 
 - GitHub installation token をクライアントへ渡さない
 - Secret は Supabase Dashboard で管理
 - private key は Git 管理対象外
 
-### 7-3. 監査
+### 8-3. 監査
 
 - `download_logs` に成功/失敗を記録
 - 障害時は Supabase Edge Function logs と突合
 
 ---
 
-## 8. 今後の設計確定事項
+## 9. 今後の設計確定事項
 
 - 複数Organization対応時の管理モデル
   - 単一GitHub App運用か、org別App許容か
 - 管理者権限モデル
   - 同期実行可能ユーザーの定義
-- 同期ジョブの実行基盤
-  - Supabase Scheduled / 外部CI どちらを採用するか
+- 同期ジョブの高度化
+  - リトライ制御
+  - webhook併用時の重複制御
 
 ---
 
-## 9. 変更管理
+## 10. 変更管理
 
 - 設計変更は本書更新を先行する
 - 実装PRでは本書と仕様書の差分整合を確認する
 
-### 9-1. 実務フロー（追加方針）
+### 10-1. 実務フロー（追加方針）
 
 1. 仕様書に追加方針を記載する
 2. 基本設計書に設計差分を記載する
