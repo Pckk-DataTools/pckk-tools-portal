@@ -286,6 +286,21 @@ Supabase:
   - `muted #5D6B7A`
 - ヒーローに控えめな地形図/等高線/GISメッシュ風パターンを重ねる
 
+### 10-8. Stitchデザインシステム反映方針（2026-04-24 追記）
+
+- 参照元:
+  - Stitch projectId: `1948335383852346385`
+  - Design System: `Pacific Infrastructure Portal`
+- 反映要素:
+  - 見出しフォント: `Public Sans`
+  - 本文フォント: `Inter`
+  - Primary: Navy
+  - Download CTA: Teal（標準ボタンより高い視認性）
+  - Card: 白背景 + 1px border + shadowなし
+- 情報構造:
+  - 補助情報領域は 1 回の展開で `その他ファイル / 旧バージョン / 管理情報` を確認できる構成にする
+  - 旧バージョン表示の入れ子折りたたみは採用しない
+
 ---
 
 ## 11. 変更管理

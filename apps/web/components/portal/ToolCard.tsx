@@ -63,6 +63,7 @@ export function ToolCard({ tool, downloadingAssetId, onDownload }: ToolCardProps
               downloadingAssetId={downloadingAssetId}
               onDownload={onDownload}
               label="最新版をダウンロード"
+              variant="download"
             />
           </div>
         ) : (
@@ -84,16 +85,13 @@ export function ToolCard({ tool, downloadingAssetId, onDownload }: ToolCardProps
             ドキュメントなし
           </button>
         )}
-        <button className="button-ghost" onClick={() => setOpenFiles(true)}>
-          その他ファイル
-        </button>
-        <button className="button-ghost" onClick={() => setOpenFiles(true)} disabled={tool.oldVersions.length === 0}>
-          {tool.oldVersions.length > 0 ? "変更履歴" : "変更履歴なし"}
+        <button className="button-ghost" onClick={() => setOpenFiles((current) => !current)}>
+          {openFiles ? "補助情報を閉じる" : `その他ファイル ${tool.otherAssets.length}件 / 旧版 ${tool.oldVersions.length}件`}
         </button>
       </div>
 
       <details className="details-block" open={openFiles} onToggle={(event) => setOpenFiles(event.currentTarget.open)}>
-        <summary>その他のファイル・旧バージョンを表示</summary>
+        <summary>その他ファイル・旧バージョン・管理情報</summary>
         <div className="details-body">
           <p className="section-caption">その他ファイル</p>
           {tool.otherAssets.length === 0 ? (
@@ -117,11 +115,15 @@ export function ToolCard({ tool, downloadingAssetId, onDownload }: ToolCardProps
             ))
           )}
           <p className="section-caption">旧バージョン</p>
-          <VersionAccordion versions={tool.oldVersions} downloadingAssetId={downloadingAssetId} onDownload={onDownload} />
+          {tool.oldVersions.length === 0 ? (
+            <p className="muted">旧バージョンはありません。</p>
+          ) : (
+            <VersionAccordion versions={tool.oldVersions} downloadingAssetId={downloadingAssetId} onDownload={onDownload} />
+          )}
+          <p className="section-caption">管理情報</p>
+          <ManagementInfoDisclosure tool={tool} />
         </div>
       </details>
-
-      <ManagementInfoDisclosure tool={tool} />
     </article>
   );
 }

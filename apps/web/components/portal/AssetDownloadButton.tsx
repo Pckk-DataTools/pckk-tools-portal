@@ -5,7 +5,7 @@ type AssetDownloadButtonProps = {
   downloadingAssetId: string | null;
   onDownload: (assetId: string) => void;
   label: string;
-  variant?: "primary" | "secondary";
+  variant?: "primary" | "secondary" | "download";
 };
 
 export function AssetDownloadButton({
@@ -16,7 +16,8 @@ export function AssetDownloadButton({
   variant = "primary",
 }: AssetDownloadButtonProps) {
   const downloading = downloadingAssetId === asset.id;
-  const className = variant === "primary" ? "button-primary" : "button-secondary";
+  const className =
+    variant === "download" ? "button-download" : variant === "primary" ? "button-primary" : "button-secondary";
   return (
     <button className={className} disabled={downloading} onClick={() => onDownload(asset.id)}>
       {downloading ? "取得中..." : label}
