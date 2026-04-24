@@ -194,22 +194,35 @@ export default function HomePage() {
 
   async function download(asset: Asset) {
     if (!supabase) return;
-    if (!session?.access_token) {
-      setMessage("セッションがありません。再ログインしてください。");
-      return;
-    }
     setDownloadingAssetId(asset.id);
     setMessage("");
     try {
       const endpoint = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/github-release-download`;
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ tool_asset_id: asset.id }),
-      });
+      const callDownload = async (accessToken: string) => {
+        return await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ tool_asset_id: asset.id }),
+        });
+      };
+
+      const { data: currentSessionData } = await supabase.auth.getSession();
+      let accessToken = currentSessionData.session?.access_token ?? session?.access_token ?? "";
+      if (!accessToken) {
+        throw new Error("セッションがありません。再ログインしてください。");
+      }
+      let res = await callDownload(accessToken);
+      if (res.status === 401) {
+        const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+        if (refreshError || !refreshed.session?.access_token) {
+          throw new Error(`401 Unauthorized (refresh failed: ${refreshError?.message ?? "no session"})`);
+        }
+        accessToken = refreshed.session.access_token;
+        res = await callDownload(accessToken);
+      }
 
       if (!res.ok) {
         const text = await res.text();
@@ -255,6 +268,28 @@ export default function HomePage() {
       setMessage(`同期失敗: ${String(error)}`);
     } finally {
       setRunningSync(false);
+    }
+  }
+
+  async function runAutoSyncIfNeeded() {
+    if (!supabase || !session?.access_token) return;
+    try {
+      const endpoint = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/github-release-sync`;
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: "{}",
+      });
+      if (!res.ok) return;
+      const result = await res.json();
+      if (result.status === "success" || result.status === "partial") {
+        await loadData(isAdmin);
+      }
+    } catch {
+      // 自動同期はベストエフォートで実行する
     }
   }
 
@@ -385,6 +420,11 @@ export default function HomePage() {
     () => availableRepositories.filter((repo) => !repo.registered && !repo.archived),
     [availableRepositories],
   );
+
+  useEffect(() => {
+    if (!session?.access_token) return;
+    void runAutoSyncIfNeeded();
+  }, [session?.access_token]);
 
   return (
     <main className="page">

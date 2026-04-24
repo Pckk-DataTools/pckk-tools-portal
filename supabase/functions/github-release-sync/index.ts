@@ -125,16 +125,6 @@ async function assertManualAdmin(req: Request) {
     return { ok: false, reason: "Unauthorized" };
   }
 
-  const { data: profile, error: profileError } = await supabaseAdmin
-    .from("profiles")
-    .select("is_admin")
-    .eq("id", authData.user.id)
-    .single();
-
-  if (profileError || !profile?.is_admin) {
-    return { ok: false, reason: "Forbidden" };
-  }
-
   return { ok: true, userId: authData.user.id };
 }
 
@@ -203,9 +193,33 @@ Deno.serve(async (req) => {
   if (!isScheduled) {
     const auth = await assertManualAdmin(req);
     if (!auth.ok) {
-      const status = auth.reason === "Forbidden" ? 403 : 401;
-      return new Response(auth.reason, { status, headers: CORS_HEADERS });
+      return new Response(auth.reason, { status: 401, headers: CORS_HEADERS });
     }
+  }
+
+  const cooldownIso = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  const { data: recentRuns, error: recentRunsError } = await supabaseAdmin
+    .from("sync_runs")
+    .select("id,started_at,status")
+    .gte("started_at", cooldownIso)
+    .order("started_at", { ascending: false })
+    .limit(1);
+  if (recentRunsError) {
+    return new Response(`sync run check error: ${recentRunsError.message}`, { status: 500, headers: CORS_HEADERS });
+  }
+  if ((recentRuns ?? []).length > 0) {
+    return new Response(JSON.stringify({
+      status: "skipped_recent",
+      trigger_type: triggerType,
+      reason: "recent sync exists within 10 minutes",
+      last_run: recentRuns?.[0] ?? null,
+    }), {
+      status: 200,
+      headers: {
+        ...CORS_HEADERS,
+        "Content-Type": "application/json",
+      },
+    });
   }
 
   const startedAt = new Date().toISOString();
