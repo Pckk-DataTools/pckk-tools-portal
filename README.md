@@ -32,6 +32,7 @@
 - Auth trigger: `supabase/migrations/0003_profiles_trigger.sql`
 - Sync / Admin extension: `supabase/migrations/0004_release_sync_and_admin.sql`
 - Repository admin extension: `supabase/migrations/0005_admin_repository_management.sql`
+- Tools delete policy extension: `supabase/migrations/0006_tools_delete_admin.sql`
 - Seed: `supabase/seed_dev.sql`
 - Edge Function: `supabase/functions/github-release-download/index.ts`
 - Edge Function: `supabase/functions/github-release-sync/index.ts`

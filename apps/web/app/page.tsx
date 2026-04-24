@@ -75,11 +75,13 @@ export default function HomePage() {
   const [availableRepositories, setAvailableRepositories] = useState<GitHubRepositoryOption[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
   const [runningSync, setRunningSync] = useState(false);
-  const [togglingToolId, setTogglingToolId] = useState<string | null>(null);
+  const [savingToolId, setSavingToolId] = useState<string | null>(null);
+  const [deletingToolId, setDeletingToolId] = useState<string | null>(null);
   const [downloadingAssetId, setDownloadingAssetId] = useState<string | null>(null);
   const [loadingAvailableRepositories, setLoadingAvailableRepositories] = useState(false);
   const [addingRepository, setAddingRepository] = useState(false);
   const [selectedRepositoryKey, setSelectedRepositoryKey] = useState("");
+  const [toolEdits, setToolEdits] = useState<Record<string, { slug: string; display_name: string; description: string }>>({});
   const [repositoryForm, setRepositoryForm] = useState({
     slug: "",
     display_name: "",
@@ -293,22 +295,55 @@ export default function HomePage() {
     }
   }
 
-  async function toggleToolActive(tool: Tool) {
+  async function saveTool(tool: Tool) {
     if (!supabase || !isAdmin) return;
-    setTogglingToolId(tool.id);
+    const edit = toolEdits[tool.id];
+    if (!edit) return;
+    setSavingToolId(tool.id);
+    setMessage("");
+    try {
+      const slug = edit.slug.trim();
+      const displayName = edit.display_name.trim();
+      const description = edit.description.trim();
+      if (!slug || !displayName) {
+        throw new Error("slug と 表示名は必須です。");
+      }
+      const { error } = await supabase
+        .from("tools")
+        .update({
+          slug,
+          display_name: displayName,
+          description: description === "" ? null : description,
+        })
+        .eq("id", tool.id);
+      if (error) throw error;
+      await loadData(true);
+      setMessage(`ツールを更新しました: ${displayName}`);
+    } catch (error) {
+      setMessage(`ツール更新失敗: ${String(error)}`);
+    } finally {
+      setSavingToolId(null);
+    }
+  }
+
+  async function deleteTool(tool: Tool) {
+    if (!supabase || !isAdmin) return;
+    const ok = window.confirm(`ツール「${tool.display_name}」を削除します。関連データも削除されます。続行しますか？`);
+    if (!ok) return;
+    setDeletingToolId(tool.id);
     setMessage("");
     try {
       const { error } = await supabase
         .from("tools")
-        .update({ is_active: !tool.is_active })
+        .delete()
         .eq("id", tool.id);
       if (error) throw error;
-      await loadData(true);
-      setMessage(`ツール状態を更新しました: ${tool.display_name}`);
+      await Promise.all([loadData(true), loadAvailableRepositories()]);
+      setMessage(`ツールを削除しました: ${tool.display_name}`);
     } catch (error) {
-      setMessage(`ツール状態更新失敗: ${String(error)}`);
+      setMessage(`ツール削除失敗: ${String(error)}`);
     } finally {
-      setTogglingToolId(null);
+      setDeletingToolId(null);
     }
   }
 
@@ -426,6 +461,18 @@ export default function HomePage() {
     void runAutoSyncIfNeeded();
   }, [session?.access_token]);
 
+  useEffect(() => {
+    const next: Record<string, { slug: string; display_name: string; description: string }> = {};
+    for (const tool of tools) {
+      next[tool.id] = {
+        slug: tool.slug,
+        display_name: tool.display_name,
+        description: tool.description ?? "",
+      };
+    }
+    setToolEdits(next);
+  }, [tools]);
+
   return (
     <main className="page">
       <div className="shell">
@@ -539,19 +586,63 @@ export default function HomePage() {
                     </div>
                   ) : null}
 
-                  <h3 style={{ marginTop: 14 }}>ツール有効/無効</h3>
+                  <h3 style={{ marginTop: 14 }}>ツール編集/削除</h3>
                   {tools.map((tool) => (
-                    <div key={`admin-tool-${tool.id}`} className="row" style={{ marginTop: 8 }}>
-                      <span>{tool.display_name}</span>
-                      <span className="meta">{tool.slug}</span>
-                      <span className="meta">status: {tool.is_active ? "active" : "inactive"}</span>
-                      <button
-                        className="secondary"
-                        disabled={togglingToolId === tool.id}
-                        onClick={() => void toggleToolActive(tool)}
-                      >
-                        {togglingToolId === tool.id ? "更新中..." : tool.is_active ? "無効化" : "有効化"}
-                      </button>
+                    <div key={`admin-tool-${tool.id}`} className="asset">
+                      <div className="grid">
+                        <input
+                          value={toolEdits[tool.id]?.slug ?? ""}
+                          onChange={(e) =>
+                            setToolEdits((current) => ({
+                              ...current,
+                              [tool.id]: {
+                                ...(current[tool.id] ?? { slug: "", display_name: "", description: "" }),
+                                slug: e.target.value,
+                              },
+                            }))}
+                          placeholder="slug"
+                        />
+                        <input
+                          value={toolEdits[tool.id]?.display_name ?? ""}
+                          onChange={(e) =>
+                            setToolEdits((current) => ({
+                              ...current,
+                              [tool.id]: {
+                                ...(current[tool.id] ?? { slug: "", display_name: "", description: "" }),
+                                display_name: e.target.value,
+                              },
+                            }))}
+                          placeholder="表示名"
+                        />
+                        <input
+                          value={toolEdits[tool.id]?.description ?? ""}
+                          onChange={(e) =>
+                            setToolEdits((current) => ({
+                              ...current,
+                              [tool.id]: {
+                                ...(current[tool.id] ?? { slug: "", display_name: "", description: "" }),
+                                description: e.target.value,
+                              },
+                            }))}
+                          placeholder="説明（任意）"
+                        />
+                        <div className="row">
+                          <button
+                            className="secondary"
+                            disabled={savingToolId === tool.id || deletingToolId === tool.id}
+                            onClick={() => void saveTool(tool)}
+                          >
+                            {savingToolId === tool.id ? "保存中..." : "保存"}
+                          </button>
+                          <button
+                            className="warn"
+                            disabled={savingToolId === tool.id || deletingToolId === tool.id}
+                            onClick={() => void deleteTool(tool)}
+                          >
+                            {deletingToolId === tool.id ? "削除中..." : "削除"}
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   ))}
 
