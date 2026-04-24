@@ -151,7 +151,9 @@
 5. Frontend が登録済み/未登録を表示する
 6. 管理者が未登録リポジトリを選び、表示名・slug・説明を入力して追加する
 7. Edge Function が `tools` と `tool_repositories` を作成する
-8. 管理者が `github-release-sync` を実行して release / asset を同期する
+8. 管理者が `tools` の表示名・slug・説明を編集する
+9. 管理者が不要な `tools` を削除する（関連repo/version/assetはFK連鎖で削除）
+10. 管理者が `github-release-sync` を実行して release / asset を同期する
 
 セキュリティ:
 
