@@ -6,5 +6,26 @@ type AssetBadgeProps = {
 };
 
 export function AssetBadge({ kind }: AssetBadgeProps) {
-  return <span className={`asset-badge kind-${kind}`}>{getAssetKindLabel(kind)}</span>;
+  const getIcon = (k: DisplayAssetKind) => {
+    switch (k) {
+      case "app":
+        return "💻";
+      case "document":
+        return "📄";
+      case "python":
+        return "🐍";
+      case "support":
+        return "⚙️";
+      default:
+        return "📦";
+    }
+  };
+
+  return (
+    <span className={`asset-badge kind-${kind}`}>
+      <span style={{ marginRight: "4px" }} aria-hidden>{getIcon(kind)}</span>
+      {getAssetKindLabel(kind)}
+    </span>
+  );
 }
+
