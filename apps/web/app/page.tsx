@@ -504,6 +504,11 @@ export default function HomePage() {
         {supabase && !session ? (
           <section className="panel login-panel">
             <h2>ログイン</h2>
+            {message ? (
+              <p className={`notice ${message.includes("失敗") ? "error-text" : ""}`} style={{ marginTop: 0, marginBottom: "12px" }}>
+                {message}
+              </p>
+            ) : null}
             <div className="login-form">
               <input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="email" />
               <input
@@ -518,6 +523,7 @@ export default function HomePage() {
             </div>
           </section>
         ) : null}
+
 
         {supabase && session ? (
           <>
@@ -693,7 +699,7 @@ export default function HomePage() {
           </>
         ) : null}
 
-        {message ? <p className={`notice ${message.includes("失敗") ? "error-text" : ""}`}>{message}</p> : null}
+        {supabase && session && message ? <p className={`notice ${message.includes("失敗") ? "error-text" : ""}`}>{message}</p> : null}
       </div>
     </main>
   );
