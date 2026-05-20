@@ -82,7 +82,7 @@ code {
 }
 
 .portal-header {
-  background: linear-gradient(135deg, #081a32 0%, #0f2f57 65%, #1b4678 100%);
+  background: linear-gradient(135deg, #0b3c75 0%, #15559e 100%);
   color: #f7fbff;
   border-radius: 14px;
   padding: 18px 22px;
@@ -91,8 +91,9 @@ code {
   gap: 14px;
   justify-content: space-between;
   align-items: flex-start;
-  border: 1px solid #29486c;
+  border: 1px solid #1c5293;
 }
+
 
 .portal-eyebrow {
   margin: 0;
