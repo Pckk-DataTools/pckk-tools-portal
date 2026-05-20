@@ -2,28 +2,15 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
+import { EmptyState } from "../components/portal/EmptyState";
+import { PortalHeader } from "../components/portal/PortalHeader";
+import { PortalHero } from "../components/portal/PortalHero";
+import { PortalStats } from "../components/portal/PortalStats";
+import { ToolCard } from "../components/portal/ToolCard";
+import { ToolSearchFilters } from "../components/portal/ToolSearchFilters";
+import { buildDisplayTools } from "../components/portal/portal-utils";
+import type { Asset, DisplayTool, PortalStatsData, Tool, ToolFilters, Version } from "../components/portal/types";
 import { getSupabaseBrowserClient } from "../lib/supabase-browser";
-
-type Tool = {
-  id: string;
-  slug: string;
-  display_name: string;
-  description: string | null;
-  is_active: boolean;
-};
-
-type Version = {
-  id: string;
-  tool_id: string;
-  version_tag: string;
-};
-
-type Asset = {
-  id: string;
-  tool_version_id: string;
-  asset_name: string;
-  size_bytes: number | null;
-};
 
 type RepositorySync = {
   id: string;
@@ -54,11 +41,23 @@ type GitHubRepositoryOption = {
   suggested_display_name: string;
 };
 
-function bytes(v: number | null): string {
-  if (!v) return "-";
-  if (v < 1024) return `${v} B`;
-  if (v < 1024 * 1024) return `${(v / 1024).toFixed(1)} KB`;
-  return `${(v / (1024 * 1024)).toFixed(1)} MB`;
+const defaultFilters: ToolFilters = {
+  query: "",
+  category: "all",
+  latestOnly: true,
+  hasDocument: false,
+  hasInstaller: false,
+};
+
+function getLastUpdatedAt(versions: Version[], assets: Asset[]): string | null {
+  const candidates = [
+    ...versions.map((version) => version.published_at ?? version.created_at),
+    ...assets.map((asset) => asset.created_at),
+  ]
+    .map((value) => new Date(value).getTime())
+    .filter((value) => Number.isFinite(value));
+  if (candidates.length === 0) return null;
+  return new Date(Math.max(...candidates)).toISOString();
 }
 
 export default function HomePage() {
@@ -81,6 +80,7 @@ export default function HomePage() {
   const [loadingAvailableRepositories, setLoadingAvailableRepositories] = useState(false);
   const [addingRepository, setAddingRepository] = useState(false);
   const [selectedRepositoryKey, setSelectedRepositoryKey] = useState("");
+  const [filters, setFilters] = useState<ToolFilters>(defaultFilters);
   const [toolEdits, setToolEdits] = useState<Record<string, { slug: string; display_name: string; description: string }>>({});
   const [repositoryForm, setRepositoryForm] = useState({
     slug: "",
@@ -103,6 +103,23 @@ export default function HomePage() {
     if (!session) return;
     void initializeSessionData();
   }, [session]);
+
+  useEffect(() => {
+    if (!session?.access_token) return;
+    void runAutoSyncIfNeeded();
+  }, [session?.access_token]);
+
+  useEffect(() => {
+    const next: Record<string, { slug: string; display_name: string; description: string }> = {};
+    for (const tool of tools) {
+      next[tool.id] = {
+        slug: tool.slug,
+        display_name: tool.display_name,
+        description: tool.description ?? "",
+      };
+    }
+    setToolEdits(next);
+  }, [tools]);
 
   async function initializeSessionData() {
     if (!supabase || !session) return;
@@ -132,8 +149,14 @@ export default function HomePage() {
     try {
       const [toolsRes, versionsRes, assetsRes, reposRes] = await Promise.all([
         supabase.from("tools").select("id,slug,display_name,description,is_active").order("display_name"),
-        supabase.from("tool_versions").select("id,tool_id,version_tag").order("created_at", { ascending: false }),
-        supabase.from("tool_assets").select("id,tool_version_id,asset_name,size_bytes").order("asset_name"),
+        supabase
+          .from("tool_versions")
+          .select("id,tool_id,version_tag,release_name,github_release_id,published_at,created_at")
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("tool_assets")
+          .select("id,tool_version_id,github_asset_id,asset_name,size_bytes,content_type,created_at")
+          .order("asset_name"),
         admin
           ? supabase
               .from("tool_repositories")
@@ -194,8 +217,13 @@ export default function HomePage() {
     setMessage("ログアウトしました。");
   }
 
-  async function download(asset: Asset) {
+  async function downloadByAssetId(assetId: string) {
     if (!supabase) return;
+    const asset = assets.find((current) => current.id === assetId);
+    if (!asset) {
+      setMessage("対象アセットが見つかりません。");
+      return;
+    }
     setDownloadingAssetId(asset.id);
     setMessage("");
     try {
@@ -225,20 +253,18 @@ export default function HomePage() {
         accessToken = refreshed.session.access_token;
         res = await callDownload(accessToken);
       }
-
       if (!res.ok) {
         const text = await res.text();
         throw new Error(`${res.status} ${text}`);
       }
-
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = asset.asset_name;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = asset.asset_name;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
       URL.revokeObjectURL(url);
       setMessage(`ダウンロード成功: ${asset.asset_name}`);
     } catch (error) {
@@ -333,10 +359,7 @@ export default function HomePage() {
     setDeletingToolId(tool.id);
     setMessage("");
     try {
-      const { error } = await supabase
-        .from("tools")
-        .delete()
-        .eq("id", tool.id);
+      const { error } = await supabase.from("tools").delete().eq("id", tool.id);
       if (error) throw error;
       await Promise.all([loadData(true), loadAvailableRepositories()]);
       setMessage(`ツールを削除しました: ${tool.display_name}`);
@@ -430,293 +453,247 @@ export default function HomePage() {
     }
   }
 
-  const versionById = useMemo(() => new Map(versions.map((v) => [v.id, v])), [versions]);
-  const versionsByTool = useMemo(() => {
-    const m = new Map<string, Version[]>();
-    for (const v of versions) {
-      const arr = m.get(v.tool_id) ?? [];
-      arr.push(v);
-      m.set(v.tool_id, arr);
-    }
-    return m;
-  }, [versions]);
-  const assetsByVersion = useMemo(() => {
-    const m = new Map<string, Asset[]>();
-    for (const a of assets) {
-      const arr = m.get(a.tool_version_id) ?? [];
-      arr.push(a);
-      m.set(a.tool_version_id, arr);
-    }
-    return m;
-  }, [assets]);
   const visibleTools = useMemo(() => (isAdmin ? tools : tools.filter((tool) => tool.is_active)), [isAdmin, tools]);
+  const displayTools = useMemo<DisplayTool[]>(
+    () => buildDisplayTools(visibleTools, versions, assets),
+    [assets, versions, visibleTools],
+  );
+  const categories = useMemo(() => [...new Set(displayTools.map((tool) => tool.category))].sort((a, b) => a.localeCompare(b, "ja")), [displayTools]);
+  const filteredTools = useMemo(() => {
+    return displayTools.filter((tool) => {
+      const query = filters.query.trim().toLowerCase();
+      const keywordPass =
+        query === "" ||
+        [tool.name, tool.slug, tool.description, tool.category, tool.targetWork].some((item) => item.toLowerCase().includes(query));
+      if (!keywordPass) return false;
+      if (filters.category !== "all" && tool.category !== filters.category) return false;
+      if (filters.latestOnly && !tool.latestVersion) return false;
+      if (filters.hasDocument && !tool.documentAsset) return false;
+      if (filters.hasInstaller && !tool.latestVersion?.assets.some((asset) => asset.kind === "app")) return false;
+      return true;
+    });
+  }, [displayTools, filters]);
+  const portalStats = useMemo<PortalStatsData>(
+    () => ({
+      activeTools: visibleTools.filter((tool) => tool.is_active).length,
+      latestVersions: displayTools.filter((tool) => tool.latestVersion).length,
+      assets: displayTools.reduce((sum, tool) => sum + (tool.latestVersion?.assets.length ?? 0), 0),
+      lastUpdatedAt: getLastUpdatedAt(versions, assets),
+    }),
+    [assets, displayTools, versions, visibleTools],
+  );
   const toolNameById = useMemo(() => new Map(tools.map((tool) => [tool.id, tool.display_name])), [tools]);
   const unregisteredRepositories = useMemo(
     () => availableRepositories.filter((repo) => !repo.registered && !repo.archived),
     [availableRepositories],
   );
 
-  useEffect(() => {
-    if (!session?.access_token) return;
-    void runAutoSyncIfNeeded();
-  }, [session?.access_token]);
-
-  useEffect(() => {
-    const next: Record<string, { slug: string; display_name: string; description: string }> = {};
-    for (const tool of tools) {
-      next[tool.id] = {
-        slug: tool.slug,
-        display_name: tool.display_name,
-        description: tool.description ?? "",
-      };
-    }
-    setToolEdits(next);
-  }, [tools]);
-
   return (
-    <main className="page">
-      <div className="shell">
-        <section className="head">
-          <h1>PCKK Tools Portal</h1>
-          <p>Supabase Auth + Edge Function 経由で private release asset を配布</p>
-        </section>
+    <main className="portal-page">
+      <div className="portal-shell">
+        {!supabase ? (
+          <section className="panel">
+            <h2>環境変数が未設定です</h2>
+            <p className="muted">
+              <code>NEXT_PUBLIC_SUPABASE_URL</code> と <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code> を{" "}
+              <code>apps/web/.env.local</code> に設定してください。
+            </p>
+          </section>
+        ) : null}
 
-        <section className="body">
-          {!supabase ? (
-            <div className="panel">
-              <h2>環境変数が未設定です</h2>
-              <p className="meta">
-                <code>NEXT_PUBLIC_SUPABASE_URL</code> と <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code> を{" "}
-                <code>apps/web/.env.local</code> に設定してください。
-              </p>
+        {supabase && !session ? (
+          <section className="panel login-panel">
+            <h2>ログイン</h2>
+            <div className="login-form">
+              <input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="email" />
+              <input
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                type="password"
+                placeholder="password"
+              />
+              <button className="button-primary" disabled={loading} onClick={signIn}>
+                {loading ? "処理中..." : "ログイン"}
+              </button>
             </div>
-          ) : null}
+          </section>
+        ) : null}
 
-          {supabase && !session ? (
-            <div className="panel">
-              <h2>ログイン</h2>
-              <div className="grid">
-                <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email" />
-                <input
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  type="password"
-                  placeholder="password"
-                />
-                <div className="row">
-                  <button disabled={loading} onClick={signIn}>
-                    {loading ? "処理中..." : "ログイン"}
+        {supabase && session ? (
+          <>
+            <PortalHeader
+              email={session.user.email ?? "-"}
+              userId={session.user.id}
+              role={isAdmin ? "admin" : "user"}
+              loading={loading}
+              onReload={() => void loadData()}
+              onLogout={() => void signOut()}
+            />
+            <PortalHero />
+            <PortalStats stats={portalStats} />
+            <ToolSearchFilters filters={filters} categories={categories} onChange={setFilters} onReset={() => setFilters(defaultFilters)} />
+
+            {filteredTools.length === 0 ? (
+              <EmptyState title="該当するツールがありません" description="検索条件またはフィルタ条件を見直してください。" />
+            ) : (
+              <section className="tools-grid">
+                {filteredTools.map((tool) => (
+                  <ToolCard
+                    key={tool.id}
+                    tool={tool}
+                    downloadingAssetId={downloadingAssetId}
+                    onDownload={(assetId) => void downloadByAssetId(assetId)}
+                  />
+                ))}
+              </section>
+            )}
+
+            {isAdmin ? (
+              <section className="panel admin-panel">
+                <h2>管理セクション</h2>
+                <div className="admin-row">
+                  <button className="button-primary" disabled={runningSync} onClick={() => void runSyncNow()}>
+                    {runningSync ? "同期中..." : "今すぐ同期"}
                   </button>
                 </div>
-              </div>
-            </div>
-          ) : supabase ? (
-            <>
-              <div className="panel">
-                <div className="row">
-                  <strong>{session?.user.email}</strong>
-                  <span className="meta">UID: {session?.user.id}</span>
-                  <span className="meta">role: {isAdmin ? "admin" : "user"}</span>
-                </div>
-                <div className="row" style={{ marginTop: 10 }}>
-                  <button className="secondary" disabled={loading} onClick={() => void loadData()}>
-                    再読み込み
-                  </button>
-                  <button className="warn" onClick={signOut}>
-                    ログアウト
-                  </button>
-                </div>
-              </div>
 
-              {isAdmin ? (
-                <div className="panel">
-                  <h2>管理セクション</h2>
-                  <div className="row">
-                    <button disabled={runningSync} onClick={() => void runSyncNow()}>
-                      {runningSync ? "同期中..." : "今すぐ同期"}
-                    </button>
-                  </div>
+                <h3>GitHubリポジトリ追加</h3>
+                <div className="admin-row">
+                  <button
+                    className="button-secondary"
+                    disabled={loadingAvailableRepositories}
+                    onClick={() => void loadAvailableRepositories()}
+                  >
+                    {loadingAvailableRepositories ? "取得中..." : "GitHub Appのリポジトリ一覧を取得"}
+                  </button>
+                  <span className="muted">
+                    取得済み {availableRepositories.length}件 / 未登録 {unregisteredRepositories.length}件
+                  </span>
+                </div>
 
-                  <h3 style={{ marginTop: 14 }}>GitHubリポジトリ追加</h3>
-                  <div className="row">
+                {availableRepositories.length > 0 ? (
+                  <div className="admin-form-grid">
+                    <select value={selectedRepositoryKey} onChange={(event) => selectRepository(event.target.value)}>
+                      <option value="">追加するリポジトリを選択</option>
+                      {availableRepositories.map((repo) => (
+                        <option key={repositoryKey(repo)} value={repositoryKey(repo)} disabled={repo.registered || repo.archived}>
+                          [{repo.installation_account_login}] {repo.full_name} / {repo.visibility}
+                          {repo.registered ? " / 登録済み" : ""}
+                          {repo.archived ? " / archived" : ""}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      value={repositoryForm.slug}
+                      onChange={(event) => setRepositoryForm((current) => ({ ...current, slug: event.target.value }))}
+                      placeholder="slug"
+                    />
+                    <input
+                      value={repositoryForm.display_name}
+                      onChange={(event) => setRepositoryForm((current) => ({ ...current, display_name: event.target.value }))}
+                      placeholder="表示名"
+                    />
+                    <input
+                      value={repositoryForm.description}
+                      onChange={(event) => setRepositoryForm((current) => ({ ...current, description: event.target.value }))}
+                      placeholder="説明（任意）"
+                    />
                     <button
-                      className="secondary"
-                      disabled={loadingAvailableRepositories}
-                      onClick={() => void loadAvailableRepositories()}
+                      className="button-primary"
+                      disabled={addingRepository || !selectedRepositoryKey}
+                      onClick={() => void addSelectedRepository()}
                     >
-                      {loadingAvailableRepositories ? "取得中..." : "GitHub Appのリポジトリ一覧を取得"}
+                      {addingRepository ? "追加中..." : "選択リポジトリを追加"}
                     </button>
-                    <span className="meta">
-                      取得済み {availableRepositories.length}件 / 未登録 {unregisteredRepositories.length}件
-                    </span>
                   </div>
+                ) : null}
 
-                  {availableRepositories.length > 0 ? (
-                    <div className="grid" style={{ marginTop: 10 }}>
-                      <select value={selectedRepositoryKey} onChange={(e) => selectRepository(e.target.value)}>
-                        <option value="">追加するリポジトリを選択</option>
-                        {availableRepositories.map((repo) => (
-                          <option key={repositoryKey(repo)} value={repositoryKey(repo)} disabled={repo.registered || repo.archived}>
-                            [{repo.installation_account_login}] {repo.full_name} / {repo.visibility}
-                            {repo.registered ? " / 登録済み" : ""}
-                            {repo.archived ? " / archived" : ""}
-                          </option>
-                        ))}
-                      </select>
+                <h3>ツール編集/削除</h3>
+                <div className="admin-list">
+                  {tools.map((tool) => (
+                    <article key={`admin-tool-${tool.id}`} className="admin-item">
                       <input
-                        value={repositoryForm.slug}
-                        onChange={(e) => setRepositoryForm((current) => ({ ...current, slug: e.target.value }))}
+                        value={toolEdits[tool.id]?.slug ?? ""}
+                        onChange={(event) =>
+                          setToolEdits((current) => ({
+                            ...current,
+                            [tool.id]: {
+                              ...(current[tool.id] ?? { slug: "", display_name: "", description: "" }),
+                              slug: event.target.value,
+                            },
+                          }))
+                        }
                         placeholder="slug"
                       />
                       <input
-                        value={repositoryForm.display_name}
-                        onChange={(e) => setRepositoryForm((current) => ({ ...current, display_name: e.target.value }))}
+                        value={toolEdits[tool.id]?.display_name ?? ""}
+                        onChange={(event) =>
+                          setToolEdits((current) => ({
+                            ...current,
+                            [tool.id]: {
+                              ...(current[tool.id] ?? { slug: "", display_name: "", description: "" }),
+                              display_name: event.target.value,
+                            },
+                          }))
+                        }
                         placeholder="表示名"
                       />
                       <input
-                        value={repositoryForm.description}
-                        onChange={(e) => setRepositoryForm((current) => ({ ...current, description: e.target.value }))}
+                        value={toolEdits[tool.id]?.description ?? ""}
+                        onChange={(event) =>
+                          setToolEdits((current) => ({
+                            ...current,
+                            [tool.id]: {
+                              ...(current[tool.id] ?? { slug: "", display_name: "", description: "" }),
+                              description: event.target.value,
+                            },
+                          }))
+                        }
                         placeholder="説明（任意）"
                       />
-                      <div className="row">
-                        <button disabled={addingRepository || !selectedRepositoryKey} onClick={() => void addSelectedRepository()}>
-                          {addingRepository ? "追加中..." : "選択リポジトリを追加"}
+                      <div className="admin-actions">
+                        <button
+                          className="button-secondary"
+                          disabled={savingToolId === tool.id || deletingToolId === tool.id}
+                          onClick={() => void saveTool(tool)}
+                        >
+                          {savingToolId === tool.id ? "保存中..." : "保存"}
+                        </button>
+                        <button
+                          className="button-danger"
+                          disabled={savingToolId === tool.id || deletingToolId === tool.id}
+                          onClick={() => void deleteTool(tool)}
+                        >
+                          {deletingToolId === tool.id ? "削除中..." : "削除"}
                         </button>
                       </div>
-                    </div>
-                  ) : null}
-
-                  <h3 style={{ marginTop: 14 }}>ツール編集/削除</h3>
-                  {tools.map((tool) => (
-                    <div key={`admin-tool-${tool.id}`} className="asset">
-                      <div className="grid">
-                        <input
-                          value={toolEdits[tool.id]?.slug ?? ""}
-                          onChange={(e) =>
-                            setToolEdits((current) => ({
-                              ...current,
-                              [tool.id]: {
-                                ...(current[tool.id] ?? { slug: "", display_name: "", description: "" }),
-                                slug: e.target.value,
-                              },
-                            }))}
-                          placeholder="slug"
-                        />
-                        <input
-                          value={toolEdits[tool.id]?.display_name ?? ""}
-                          onChange={(e) =>
-                            setToolEdits((current) => ({
-                              ...current,
-                              [tool.id]: {
-                                ...(current[tool.id] ?? { slug: "", display_name: "", description: "" }),
-                                display_name: e.target.value,
-                              },
-                            }))}
-                          placeholder="表示名"
-                        />
-                        <input
-                          value={toolEdits[tool.id]?.description ?? ""}
-                          onChange={(e) =>
-                            setToolEdits((current) => ({
-                              ...current,
-                              [tool.id]: {
-                                ...(current[tool.id] ?? { slug: "", display_name: "", description: "" }),
-                                description: e.target.value,
-                              },
-                            }))}
-                          placeholder="説明（任意）"
-                        />
-                        <div className="row">
-                          <button
-                            className="secondary"
-                            disabled={savingToolId === tool.id || deletingToolId === tool.id}
-                            onClick={() => void saveTool(tool)}
-                          >
-                            {savingToolId === tool.id ? "保存中..." : "保存"}
-                          </button>
-                          <button
-                            className="warn"
-                            disabled={savingToolId === tool.id || deletingToolId === tool.id}
-                            onClick={() => void deleteTool(tool)}
-                          >
-                            {deletingToolId === tool.id ? "削除中..." : "削除"}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-
-                  <h3 style={{ marginTop: 14 }}>同期ステータス</h3>
-                  {repositories.length === 0 ? <p className="meta">対象リポジトリなし</p> : null}
-                  {repositories.map((repo) => (
-                    <div key={repo.id} className="asset">
-                      <div className="row">
-                        <strong>
-                          {repo.github_owner}/{repo.github_repo}
-                        </strong>
-                        <span className="meta">tool: {toolNameById.get(repo.tool_id) ?? repo.tool_id}</span>
-                      </div>
-                      <div className="meta">sync_enabled: {String(repo.sync_enabled)}</div>
-                      <div className="meta">last_sync_status: {repo.last_sync_status}</div>
-                      <div className="meta">last_release_tag: {repo.last_release_tag ?? "-"}</div>
-                      <div className="meta">last_synced_at: {repo.last_synced_at ?? "-"}</div>
-                      {repo.last_sync_error ? <div className="meta error">last_sync_error: {repo.last_sync_error}</div> : null}
-                    </div>
+                    </article>
                   ))}
                 </div>
-              ) : null}
 
-              <div className="panel">
-                <h2>ツール一覧</h2>
-                {visibleTools.map((tool) => {
-                  const toolVersions = versionsByTool.get(tool.id) ?? [];
-                  return (
-                    <div key={tool.id} className="tool">
-                      <h3>{tool.display_name}</h3>
-                      <div className="meta">{tool.slug}</div>
-                      {tool.description ? <p className="meta">{tool.description}</p> : null}
+                <h3>同期ステータス</h3>
+                {repositories.length === 0 ? <p className="muted">対象リポジトリなし</p> : null}
+                <div className="admin-list">
+                  {repositories.map((repo) => (
+                    <article key={repo.id} className="admin-item">
+                      <strong>
+                        {repo.github_owner}/{repo.github_repo}
+                      </strong>
+                      <span className="muted">tool: {toolNameById.get(repo.tool_id) ?? repo.tool_id}</span>
+                      <span className="muted">sync_enabled: {String(repo.sync_enabled)}</span>
+                      <span className="muted">last_sync_status: {repo.last_sync_status}</span>
+                      <span className="muted">last_release_tag: {repo.last_release_tag ?? "-"}</span>
+                      <span className="muted">last_synced_at: {repo.last_synced_at ?? "-"}</span>
+                      {repo.last_sync_error ? <span className="error-text">last_sync_error: {repo.last_sync_error}</span> : null}
+                    </article>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+          </>
+        ) : null}
 
-                      {toolVersions.length === 0 ? <p className="meta">バージョン情報なし</p> : null}
-                      {toolVersions.map((version) => {
-                        const vAssets = assetsByVersion.get(version.id) ?? [];
-                        return (
-                          <div key={version.id} className="asset">
-                            <div className="row">
-                              <strong>{version.version_tag}</strong>
-                              <span className="meta">version_id: {version.id}</span>
-                            </div>
-                            {vAssets.length === 0 ? <div className="meta">assetなし</div> : null}
-                            {vAssets.map((asset) => (
-                              <div key={asset.id} className="row" style={{ marginTop: 8 }}>
-                                <span>{asset.asset_name}</span>
-                                <span className="meta">{bytes(asset.size_bytes)}</span>
-                                <button
-                                  disabled={downloadingAssetId === asset.id}
-                                  onClick={() => void download(asset)}
-                                >
-                                  {downloadingAssetId === asset.id ? "取得中..." : "ダウンロード"}
-                                </button>
-                                <span className="meta">asset_id: {asset.id}</span>
-                              </div>
-                            ))}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })}
-              </div>
-            </>
-          ) : null}
-
-          {message ? <p className={`notice ${message.includes("失敗") ? "error" : ""}`}>{message}</p> : null}
-          {versionById.size > 0 && session ? (
-            <p className="meta">
-              読み込み済み: tools {tools.length} / versions {versions.length} / assets {assets.length}
-              {isAdmin ? ` / repositories ${repositories.length}` : ""}
-            </p>
-          ) : null}
-        </section>
+        {message ? <p className={`notice ${message.includes("失敗") ? "error-text" : ""}`}>{message}</p> : null}
       </div>
     </main>
   );

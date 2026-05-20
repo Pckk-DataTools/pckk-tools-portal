@@ -1,6 +1,6 @@
 # pckk-tools-portal 基本設計書
 
-更新日: 2026-04-22  
+更新日: 2026-04-24  
 関連仕様: `docs/specification.md`
 
 ---
@@ -214,12 +214,104 @@ Supabase:
 
 ---
 
-## 10. 変更管理
+## 10. UI画面設計（2026-04-24 追加）
+
+### 10-1. 対象
+
+- `apps/web/app/page.tsx`
+- `apps/web/components/portal/*`
+
+### 10-2. コンポーネント分割
+
+- `PortalHeader`: タイトル、ユーザー情報、role、再読み込み、ログアウト
+- `PortalHero`: 説明文と背景パターン
+- `PortalStats`: 4つのステータスカード表示
+- `ToolSearchFilters`: 検索/カテゴリ/条件フィルタ/リセット
+- `ToolCard`: ツール単位カード表示（最新版中心）
+- `AssetBadge`: asset用途ラベル
+- `AssetDownloadButton`: ダウンロードCTA（最新版導線を強調）
+- `VersionAccordion`: 旧バージョン表示
+- `ManagementInfoDisclosure`: 内部管理情報表示
+- `EmptyState`: 該当データなし表示
+
+### 10-3. 表示用データ整形
+
+フロントでは生の `tools/tool_versions/tool_assets` を直接描画せず、表示用モデルへ整形する。
+
+- `DisplayTool`
+  - `latestVersion` と `oldVersions` を分離
+  - `recommendedAsset` を保持
+  - `documentAsset` / `otherAssets` を保持
+- `DisplayVersion`
+  - `assets` を分類結果つきで保持
+- `DisplayAsset`
+  - `kind`（app/document/python/support/other）を保持
+
+### 10-4. asset分類と推奨選定
+
+- `getAssetKind(fileName)` で拡張子・名称から用途分類する
+- `getRecommendedAsset(assets)` で優先度順に推奨assetを選定する
+  - 優先順: app > document > python > support > other
+
+### 10-5. 情報表示ポリシー
+
+- 通常ユーザーの初期表示:
+  - ツール名、概要、対象業務、最新版、推奨asset、最新版ダウンロード
+- 折りたたみ表示:
+  - 旧バージョン
+  - その他ファイル
+  - 管理情報（ID群、GitHub release id、size、published_at）
+
+### 10-6. フィルタ設計
+
+- キーワード検索対象:
+  - `display_name`, `slug`, `description`, `category`, `targetWork`
+- 条件:
+  - 最新版のみ（初期ON）
+  - ドキュメントあり
+  - インストーラーあり
+
+### 10-7. レイアウト/スタイル
+
+- PC: 2-3カラムカード
+- タブレット/モバイル: 1カラム
+- カラートークン:
+  - `pckk-blue #0A3161` (パシフィックブルー / ディープアースブルー)
+  - `pckk-earth #0E3E7D` (アースブルー)
+  - `teal #0F766E` (ダウンロードCTA用)
+  - `platinum-bg #F1F5F9` (プラチナシルバー背景)
+  - `surface #FFFFFF`
+  - `border-platinum #E2E8F0` (プラチナグレー境界線)
+  - `charcoal-text #1E293B` (無彩色のチャコールテキスト)
+  - `muted-text #64748B`
+- ページ背景に精密な方眼線（プレシジョングリッド）を設定。
+- ヒーローエリアの背景に、パシフィックコンサルタンツのロゴマークをモチーフにした「重なり合うスクエア（正方形）」の幾何学パターン（SVG）を重ね、透過して奥行きを出す。
+
+### 10-8. Stitchデザインシステム反映方針（2026-04-24 追記、2026-05-20 改定）
+
+- 参照元:
+  - Stitch projectId: `1948335383852346385`
+  - Design System: `Pacific Infrastructure Portal`
+- 反映要素:
+  - 見出しフォント: `Public Sans`
+  - 本文フォント: `Inter`
+  - Primary: Navy (`#0A3161`)
+  - Download CTA: Teal（標準ボタンより高い視認性）
+  - Card: 白背景 + 1px border-platinum + shadowなし (角丸はシャープな6px〜8px)
+  - Card Hover: カードがスムーズに浮き上がり、ボーダーがパシフィックブルーに変化。ホバー時に「重なり合うもうひとつのスクエア」を想起させる二重枠線の光彩効果を適用。
+- 情報構造:
+  - 補助情報領域は 1 回の展開で `その他ファイル / 旧バージョン / 管理情報` を確認できる構成にする
+  - 旧バージョン表示の入れ子折りたたみは採用しない
+
+
+---
+
+## 11. 変更管理
 
 - 設計変更は本書更新を先行する
 - 実装PRでは本書と仕様書の差分整合を確認する
 
-### 10-1. 実務フロー（追加方針）
+### 11-1. 実務フロー（追加方針）
 
 1. 仕様書に追加方針を記載する
 2. 基本設計書に設計差分を記載する
