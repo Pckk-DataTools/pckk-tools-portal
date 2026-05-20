@@ -39,7 +39,10 @@ type GitHubRelease = {
   body?: string;
   published_at?: string;
   assets?: GitHubAsset[];
+  draft?: boolean;
+  prerelease?: boolean;
 };
+
 
 function normalizePrivateKey(raw: string): string {
   return raw
@@ -90,10 +93,10 @@ async function getInstallationToken(installationId: number) {
   return json.token;
 }
 
-async function fetchLatestRelease(repo: RepoRow): Promise<GitHubRelease> {
+async function fetchReleases(repo: RepoRow): Promise<GitHubRelease[]> {
   const installationToken = await getInstallationToken(repo.github_installation_id);
   const response = await fetch(
-    `https://api.github.com/repos/${repo.github_owner}/${repo.github_repo}/releases/latest`,
+    `https://api.github.com/repos/${repo.github_owner}/${repo.github_repo}/releases?per_page=100`,
     {
       headers: {
         Accept: "application/vnd.github+json",
@@ -104,14 +107,15 @@ async function fetchLatestRelease(repo: RepoRow): Promise<GitHubRelease> {
   );
 
   if (response.status === 404) {
-    throw new Error("latest release not found");
+    throw new Error("releases not found");
   }
   if (!response.ok) {
-    throw new Error(`latest release fetch error: ${await response.text()}`);
+    throw new Error(`releases fetch error: ${await response.text()}`);
   }
 
-  return await response.json() as GitHubRelease;
+  return await response.json() as GitHubRelease[];
 }
+
 
 async function assertManualAdmin(req: Request) {
   const authHeader = req.headers.get("Authorization");
@@ -238,9 +242,18 @@ Deno.serve(async (req) => {
 
   for (const repo of repoRows) {
     try {
-      const latest = await fetchLatestRelease(repo);
-      const versionId = await upsertVersion(repo.tool_id, latest);
-      await upsertAssets(versionId, latest.assets ?? []);
+      const releases = await fetchReleases(repo);
+      if (releases.length === 0) {
+        throw new Error("no releases found");
+      }
+
+      for (const release of releases) {
+        if (release.draft) continue;
+        const versionId = await upsertVersion(repo.tool_id, release);
+        await upsertAssets(versionId, release.assets ?? []);
+      }
+
+      const latestRelease = releases.find((r) => !r.prerelease && !r.draft) ?? releases[0];
 
       const { error: updateError } = await supabaseAdmin
         .from("tool_repositories")
@@ -248,7 +261,7 @@ Deno.serve(async (req) => {
           last_synced_at: new Date().toISOString(),
           last_sync_status: "success",
           last_sync_error: null,
-          last_release_tag: latest.tag_name,
+          last_release_tag: latestRelease.tag_name,
         })
         .eq("id", repo.id);
 

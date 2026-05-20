@@ -102,7 +102,7 @@
 
 ---
 
-## 5. 同期設計（これから実装）
+## 5. 同期設計（実装済み）
 
 目的:
 
@@ -112,16 +112,22 @@
 
 1. 認証ユーザーログイン時の自動同期（10分クールダウン）
 2. 手動同期API（管理者UIから実行可能）
+3. 最新および過去リリース履歴の一括同期（直近最大100件）
 
 今後の拡張:
 
 1. webhook同期（release published）
-2. 最新のみ同期から履歴同期への拡張
 
 同期対象:
 
 - `tool_repositories.sync_enabled = true` の `github_owner/github_repo`
-- 対象releaseは latest release
+- 対象releaseは最新リリースおよび過去リリース（直近最大100件）
+
+履歴同期アルゴリズム:
+
+1. GitHub API `GET /repos/{owner}/{repo}/releases?per_page=100` を呼び出し。
+2. 取得したリリースをループ処理し、ドラフト（`draft: true`）以外のリリースについて、`tool_versions` および `tool_assets` への upsert 処理を一括実行。
+3. `tool_repositories.last_release_tag` には、`prerelease` が `false` かつ `draft` が `false` であるもののうち最新（リストの中で最初に該当するもの）のタグを書き込む。プレリリース版しか存在しない場合は、取得した配列の最初のタグを使用する。
 
 失敗時:
 
@@ -133,6 +139,7 @@
 - 同期実行履歴は `sync_runs` テーブルへ記録
 - repo単位の最新同期状態は `tool_repositories.last_*` 列へ記録
 - 直近10分以内に `sync_runs` が存在する場合は `skipped_recent` を返して処理を抑止
+
 
 ---
 
