@@ -3,13 +3,13 @@ export function PortalHero() {
     <section className="portal-hero">
       <div className="portal-hero-pattern" aria-hidden />
       <p className="portal-hero-title">
-        社内で開発された業務改善ツールや技術資料を、
+        社内で開発された業務改善ツールやマニュアルを、
         <br />
-        必要なメンバーへ円滑に共有・配布するためのポータルです。
+        共有・配布するためのポータルサイトです。
       </p>
       <p className="portal-hero-copy">
-        各部署で開発・カスタマイズされた解析ツール、GIS用スクリプト、マニュアルなどを集約し、
-        常に最新バージョンを安全にダウンロードできるようにしています。
+        解析ツール、iRICソルバー、GIS用スクリプト、マニュアルなどを集約し、
+        常に最新バージョンを社内限定で安全にダウンロードできるようにしています。
       </p>
     </section>
 

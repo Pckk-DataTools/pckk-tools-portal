@@ -12,7 +12,7 @@ export function PortalHeader({ email, userId, role, loading, onReload, onLogout 
     <header className="portal-header">
       <div>
         <p className="portal-eyebrow">PCKK Tools Portal</p>
-        <h1>社内業務改善ツール配布ポータル</h1>
+        <h1>社内業務改善ツール配布ポータルサイト</h1>
       </div>
       <div className="portal-userbox">
         <div className="portal-user-meta">
