@@ -1,4 +1,3 @@
-import { AssetBadge } from "./AssetBadge";
 import { AssetDownloadButton } from "./AssetDownloadButton";
 import { bytes, formatDateTime } from "./portal-utils";
 import type { DisplayVersion } from "./types";
@@ -24,7 +23,6 @@ export function VersionAccordion({ versions, downloadingAssetId, onDownload }: V
           {version.assets.map((asset) => (
             <div key={asset.id} className="asset-row">
               <div className="asset-main">
-                <AssetBadge kind={asset.kind} />
                 <span>{asset.name}</span>
                 <span className="muted">{bytes(asset.sizeBytes)}</span>
               </div>

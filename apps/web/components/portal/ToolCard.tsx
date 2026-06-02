@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { AssetBadge } from "./AssetBadge";
 import { AssetDownloadButton } from "./AssetDownloadButton";
 import { ManagementInfoDisclosure } from "./ManagementInfoDisclosure";
 import { VersionAccordion } from "./VersionAccordion";
@@ -15,8 +14,7 @@ type ToolCardProps = {
 export function ToolCard({ tool, downloadingAssetId, onDownload }: ToolCardProps) {
   const [openFiles, setOpenFiles] = useState(false);
   const latestVersion = tool.latestVersion;
-  const recommendedAsset = tool.recommendedAsset;
-  const documentAsset = tool.documentAsset;
+  const latestAssets = latestVersion?.assets ?? [];
 
   return (
     <article className="tool-card">
@@ -49,71 +47,38 @@ export function ToolCard({ tool, downloadingAssetId, onDownload }: ToolCardProps
         </div>
       </div>
 
-      <div className="recommended-box">
-        <p>推奨アセット</p>
-        {recommendedAsset ? (
-          <div className="asset-row">
-            <div className="asset-main">
-              <AssetBadge kind={recommendedAsset.kind} />
-              <span>{recommendedAsset.name}</span>
-              <span className="muted">{bytes(recommendedAsset.sizeBytes)}</span>
+      <div className="latest-assets-box">
+        <p className="section-caption">最新版ファイル一覧</p>
+        {latestAssets.length > 0 ? (
+          latestAssets.map((asset) => (
+            <div key={asset.id} className="asset-row">
+              <div className="asset-main">
+                <span>{asset.name}</span>
+                <span className="muted">{bytes(asset.sizeBytes)}</span>
+              </div>
+              <AssetDownloadButton
+                asset={asset}
+                downloadingAssetId={downloadingAssetId}
+                onDownload={onDownload}
+                label="ダウンロード"
+                variant="download"
+              />
             </div>
-            <AssetDownloadButton
-              asset={recommendedAsset}
-              downloadingAssetId={downloadingAssetId}
-              onDownload={onDownload}
-              label="最新版をダウンロード"
-              variant="download"
-            />
-          </div>
+          ))
         ) : (
-          <p className="muted">利用可能なアセットはありません。</p>
+          <p className="muted">利用可能なファイルはありません。</p>
         )}
       </div>
 
       <div className="tool-buttons">
-        {documentAsset ? (
-          <AssetDownloadButton
-            asset={documentAsset}
-            downloadingAssetId={downloadingAssetId}
-            onDownload={onDownload}
-            label="ドキュメントを見る"
-            variant="secondary"
-          />
-        ) : (
-          <button className="button-disabled" disabled>
-            ドキュメントなし
-          </button>
-        )}
         <button className="button-ghost" onClick={() => setOpenFiles((current) => !current)}>
-          {openFiles ? "補助情報を閉じる" : `その他ファイル ${tool.otherAssets.length}件 / 旧版 ${tool.oldVersions.length}件`}
+          {openFiles ? "閉じる" : `旧バージョン ${tool.oldVersions.length}件 / 管理情報`}
         </button>
       </div>
 
       <details className="details-block" open={openFiles} onToggle={(event) => setOpenFiles(event.currentTarget.open)}>
-        <summary>その他ファイル・旧バージョン・管理情報</summary>
+        <summary>旧バージョン・管理情報</summary>
         <div className="details-body">
-          <p className="section-caption">その他ファイル</p>
-          {tool.otherAssets.length === 0 ? (
-            <p className="muted">最新版の追加ファイルはありません。</p>
-          ) : (
-            tool.otherAssets.map((asset) => (
-              <div key={asset.id} className="asset-row">
-                <div className="asset-main">
-                  <AssetBadge kind={asset.kind} />
-                  <span>{asset.name}</span>
-                  <span className="muted">{bytes(asset.sizeBytes)}</span>
-                </div>
-                <AssetDownloadButton
-                  asset={asset}
-                  downloadingAssetId={downloadingAssetId}
-                  onDownload={onDownload}
-                  label="ダウンロード"
-                  variant="secondary"
-                />
-              </div>
-            ))
-          )}
           <p className="section-caption">旧バージョン</p>
           {tool.oldVersions.length === 0 ? (
             <p className="muted">旧バージョンはありません。</p>

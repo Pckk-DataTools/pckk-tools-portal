@@ -221,7 +221,7 @@ Supabase:
 
 ---
 
-## 10. UI画面設計（2026-04-24 追加）
+## 10. UI画面設計（2026-04-24 追加、2026-06-02 改定）
 
 ### 10-1. 対象
 
@@ -235,8 +235,7 @@ Supabase:
 - `PortalStats`: 4つのステータスカード表示
 - `ToolSearchFilters`: 検索/カテゴリ/条件フィルタ/リセット
 - `ToolCard`: ツール単位カード表示（最新版中心）
-- `AssetBadge`: asset用途ラベル
-- `AssetDownloadButton`: ダウンロードCTA（最新版導線を強調）
+- `AssetDownloadButton`: ダウンロードCTA
 - `VersionAccordion`: 旧バージョン表示
 - `ManagementInfoDisclosure`: 内部管理情報表示
 - `EmptyState`: 該当データなし表示
@@ -247,8 +246,8 @@ Supabase:
 
 - `DisplayTool`
   - `latestVersion` と `oldVersions` を分離
-  - `recommendedAsset` を保持
-  - `documentAsset` / `otherAssets` を保持
+  - `recommendedAsset` を保持（内部のフィルタ処理用）
+  - `documentAsset` / `otherAssets` を保持（内部のフィルタ処理用）
 - `DisplayVersion`
   - `assets` を分類結果つきで保持
 - `DisplayAsset`
@@ -256,18 +255,16 @@ Supabase:
 
 ### 10-4. asset分類と推奨選定
 
-- `getAssetKind(fileName)` で拡張子・名称から用途分類する
-- `getRecommendedAsset(assets)` で優先度順に推奨assetを選定する
-  - 優先順: app > document > python > support > other
+- `getAssetKind(fileName)` で拡張子・名称から用途分類する（検索フィルタ「ドキュメントあり」「インストーラーあり」の内部判定用）
+- UI上では、アセットの用途分類ラベル（アプリ本体等）やアイコンの表示は行わず、ファイル名とサイズのみを表示する。
 
 ### 10-5. 情報表示ポリシー
 
 - 通常ユーザーの初期表示:
-  - ツール名、概要、対象業務、最新版、推奨asset、最新版ダウンロード
+  - ツール名、概要、対象業務、最新版、最新バージョンのアセット（ファイル）一覧と各ダウンロードボタン
 - 折りたたみ表示:
   - 旧バージョン
-  - その他ファイル
-  - 管理情報（ID群、GitHub release id、size、published_at）
+  - 管理情報（ID群、GitHub release id、size、published_at。最新アセットが複数の場合はすべて並記）
 
 ### 10-6. フィルタ設計
 
@@ -294,7 +291,7 @@ Supabase:
 - ページ背景に精密な方眼線（プレシジョングリッド）を設定。
 - ヒーローエリアの背景に、パシフィックコンサルタンツのロゴマークをモチーフにした「重なり合うスクエア（正方形）」の幾何学パターン（SVG）を重ね、透過して奥行きを出す。
 
-### 10-8. Stitchデザインシステム反映方針（2026-04-24 追記、2026-05-20 改定）
+### 10-8. Stitchデザインシステム反映方針（2026-04-24 追記、2026-05-20 改定、2026-06-02 改定）
 
 - 参照元:
   - Stitch projectId: `1948335383852346385`
@@ -307,7 +304,7 @@ Supabase:
   - Card: 白背景 + 1px border-platinum + shadowなし (角丸はシャープな6px〜8px)
   - Card Hover: カードがスムーズに浮き上がり、ボーダーがパシフィックブルーに変化。ホバー時に「重なり合うもうひとつのスクエア」を想起させる二重枠線の光彩効果を適用。
 - 情報構造:
-  - 補助情報領域は 1 回の展開で `その他ファイル / 旧バージョン / 管理情報` を確認できる構成にする
+  - 補助情報領域は 1 回の展開で `旧バージョン / 管理情報` を確認できる構成にする
   - 旧バージョン表示の入れ子折りたたみは採用しない
 
 
