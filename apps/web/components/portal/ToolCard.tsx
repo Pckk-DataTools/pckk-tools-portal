@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { AssetDownloadButton } from "./AssetDownloadButton";
 import { ManagementInfoDisclosure } from "./ManagementInfoDisclosure";
 import { VersionAccordion } from "./VersionAccordion";
@@ -12,7 +11,6 @@ type ToolCardProps = {
 };
 
 export function ToolCard({ tool, downloadingAssetId, onDownload }: ToolCardProps) {
-  const [openFiles, setOpenFiles] = useState(false);
   const latestVersion = tool.latestVersion;
   const latestAssets = latestVersion?.assets ?? [];
 
@@ -70,13 +68,7 @@ export function ToolCard({ tool, downloadingAssetId, onDownload }: ToolCardProps
         )}
       </div>
 
-      <div className="tool-buttons">
-        <button className="button-ghost" onClick={() => setOpenFiles((current) => !current)}>
-          {openFiles ? "閉じる" : `旧バージョン ${tool.oldVersions.length}件 / 管理情報`}
-        </button>
-      </div>
-
-      <details className="details-block" open={openFiles} onToggle={(event) => setOpenFiles(event.currentTarget.open)}>
+      <details className="details-block">
         <summary>旧バージョン・管理情報</summary>
         <div className="details-body">
           <p className="section-caption">旧バージョン</p>
